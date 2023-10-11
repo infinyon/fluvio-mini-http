@@ -1,14 +1,12 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+mod async_std_compat;
+pub mod client;
+mod request;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub use client::Client;
+pub use request::ResponseExt;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+pub use hyper::StatusCode;
+
+pub async fn get(uri: impl AsRef<str>) -> Result<hyper::Response<hyper::Body>, eyre::Error> {
+    Client::new().get(uri).send().await
 }
