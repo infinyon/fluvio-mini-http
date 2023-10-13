@@ -1,4 +1,4 @@
-use std::future::Future;
+use std::{future::Future, pin::Pin};
 
 use http::{request::Builder, HeaderName, HeaderValue};
 use hyper::{body::Bytes, Body, Response};
@@ -47,7 +47,9 @@ impl RequestBuilder {
 }
 
 pub trait ResponseExt {
-    fn bytes(self) -> ResponseBytesFut;
+    // TODO: fix this once `async fn in traits` is stable
+    // see: https://github.com/rust-lang/rust/pull/115822
+    fn bytes(self) -> Pin<Box<dyn Future<Output = Result<Bytes, eyre::Error>> + Send + 'static>>;
 }
 
 impl<T> ResponseExt for Response<T>
@@ -55,29 +57,13 @@ where
     T: hyper::body::HttpBody + Send + 'static,
     T::Data: Send,
 {
-    fn bytes(self) -> ResponseBytesFut {
+    fn bytes(self) -> Pin<Box<dyn Future<Output = Result<Bytes, eyre::Error>> + Send + 'static>> {
         let fut = async move {
             hyper::body::to_bytes(self.into_body())
                 .await
                 .map_err(|_| eyre::eyre!("todo"))
         };
-        ResponseBytesFut {
-            to_bytes: Box::pin(fut),
-        }
-    }
-}
 
-pub struct ResponseBytesFut {
-    to_bytes: std::pin::Pin<Box<dyn Future<Output = Result<Bytes, eyre::Error>> + Send + 'static>>,
-}
-
-impl Future for ResponseBytesFut {
-    type Output = Result<Bytes, eyre::Error>;
-
-    fn poll(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.to_bytes.as_mut().poll(cx)
+        Box::pin(fut)
     }
 }
