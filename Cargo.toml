@@ -16,7 +16,6 @@ json = ["dep:serde", "dep:serde_json"]
 
 [dependencies]
 async-std = "1.12.0"
-eyre = "0.6.8"
 fluvio-future = { version = "0.6.0", features = ["rust_tls"] }
 http = "0.2.9"
 hyper = { version = "0.14.27", default-features = false, features = ["client", "http1", "http2"] }
@@ -24,5 +23,6 @@ rustls = "0.21.7"
 rustls-webpki = "0.101.6"
 serde = { version = "1.0.189", optional = true }
 serde_json = { version = "1.0.107", optional = true }
+thiserror = "1.0.49"
 tokio = { version = "1.33.0", default-features = false }
 webpki-roots = "0.25.2"

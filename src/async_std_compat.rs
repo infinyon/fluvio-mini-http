@@ -1,6 +1,6 @@
 use std::{
     future::Future,
-    net::ToSocketAddrs,
+    io,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -16,9 +16,24 @@ use hyper::{
     service::Service,
     Uri,
 };
-use rustls::ClientConfig;
+use rustls::{client::InvalidDnsNameError, ClientConfig};
 
 use std::sync::Arc;
+
+const DEFAULT_PORT: u16 = 443;
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConnectorError {
+    #[error("unsupported protocol: {0}")]
+    UnsupportedProtocol(String),
+    #[error("no host defined: {0:?}")]
+    NoHost(Uri),
+    #[error(transparent)]
+    IoError(#[from] io::Error),
+    #[error(transparent)]
+    InvalidDns(#[from] InvalidDnsNameError),
+}
+
 #[derive(Clone)]
 pub struct CompatConnector(Arc<TlsConnector>);
 
@@ -28,12 +43,11 @@ impl CompatConnector {
     }
 }
 
-type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
-
 impl Service<Uri> for CompatConnector {
     type Response = TlsStream;
-    type Error = eyre::Error;
-    type Future = BoxFuture<'static, Result<Self::Response, Self::Error>>;
+    type Error = ConnectorError;
+    type Future =
+        Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
 
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
@@ -42,39 +56,30 @@ impl Service<Uri> for CompatConnector {
     fn call(&mut self, uri: Uri) -> Self::Future {
         let connector = self.0.clone();
 
-        Box::pin(async move {
-            let host = match uri.host() {
-                Some(h) => h,
-                None => return Err(eyre::eyre!("no host")),
-            };
+        let fut = async move {
+            let host = uri.host().ok_or_else(|| {
+                let uri = uri.clone();
+                ConnectorError::NoHost(uri)
+            })?;
 
             match uri.scheme_str() {
                 Some("https") => {
-                    let socket_addr = {
-                        let host = host.to_string();
-                        let port = uri.port_u16().unwrap_or(443);
-                        match (host.as_str(), port).to_socket_addrs()?.next() {
-                            Some(addr) => addr,
-                            None => return Err(eyre::eyre!("host resolution: {} failed", host)),
-                        }
-                    };
-                    let tcp_stream = TcpStream::connect(&socket_addr).await?;
-
-                    let stream = connector
-                        .connect(host.try_into()?, tcp_stream)
+                    let port = uri.port_u16().unwrap_or(DEFAULT_PORT);
+                    let tcp_stream = TcpStream::connect((host, port))
                         .await
-                        .map_err(|err| {
-                            std::io::Error::new(
-                                std::io::ErrorKind::Other,
-                                format!("tls handshake: {}", err),
-                            )
-                        })?;
+                        .map_err(ConnectorError::IoError)?;
+
+                    let stream = connector.connect(host.try_into()?, tcp_stream).await?;
                     Ok(TlsStream(stream))
                 }
-                Some("http") => Err(eyre::eyre!("http not supported")),
-                scheme => Err(eyre::eyre!("{:?}", scheme)),
+                Some(scheme) => Err(ConnectorError::UnsupportedProtocol(scheme.to_string())),
+                _ => Err(ConnectorError::UnsupportedProtocol(
+                    "no scheme provided".to_owned(),
+                )),
             }
-        })
+        };
+
+        Box::pin(fut)
     }
 }
 

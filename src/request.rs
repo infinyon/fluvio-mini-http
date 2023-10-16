@@ -5,6 +5,17 @@ use hyper::{body::Bytes, Body, Response};
 
 use crate::client::Client;
 
+#[derive(Debug, thiserror::Error)]
+pub enum RequestError {
+    #[error("Hyper error: {0}")]
+    HyperError(#[from] hyper::Error),
+    #[error("Http error: {0}")]
+    HttpError(#[from] http::Error),
+    #[cfg(feature = "json")]
+    #[error("Serialization error: {0}")]
+    SerdeError(#[from] serde_json::Error),
+}
+
 pub struct RequestBuilder {
     client: Client,
     req_builder: Builder,
@@ -29,18 +40,12 @@ impl RequestBuilder {
         self
     }
 
-    pub async fn send(self) -> Result<Response<Body>, eyre::Error> {
+    pub async fn send(self) -> Result<Response<Body>, RequestError> {
         let req = self
             .req_builder
             .header(http::header::USER_AGENT, "fluvio-mini-http/0.1")
-            .body(hyper::Body::empty())
-            .unwrap();
-        Ok(self
-            .client
-            .hyper
-            .request(req)
-            .await
-            .map_err(|_err| eyre::eyre!("idk"))?)
+            .body(hyper::Body::empty())?;
+        Ok(self.client.hyper.request(req).await?)
     }
 }
 
@@ -48,16 +53,16 @@ impl RequestBuilder {
 type ResponseExtFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 pub trait ResponseExt {
-    fn bytes(self) -> ResponseExtFuture<Result<Bytes, eyre::Error>>;
+    fn bytes(self) -> ResponseExtFuture<Result<Bytes, RequestError>>;
 
     #[cfg(feature = "json")]
-    fn json<T: serde::de::DeserializeOwned>(self) -> ResponseExtFuture<Result<T, eyre::Error>>
+    fn json<T: serde::de::DeserializeOwned>(self) -> ResponseExtFuture<Result<T, RequestError>>
     where
         Self: Sized + Send + 'static,
     {
         let fut = async move {
             let bytes = self.bytes().await?;
-            serde_json::from_slice(&bytes).map_err(|e| eyre::eyre!("serde erro: {e}"))
+            Ok(serde_json::from_slice(&bytes)?)
         };
 
         Box::pin(fut)
@@ -68,13 +73,10 @@ impl<T> ResponseExt for Response<T>
 where
     T: hyper::body::HttpBody + Send + 'static,
     T::Data: Send,
+    RequestError: From<<T as hyper::body::HttpBody>::Error>,
 {
-    fn bytes(self) -> ResponseExtFuture<Result<Bytes, eyre::Error>> {
-        let fut = async move {
-            hyper::body::to_bytes(self.into_body())
-                .await
-                .map_err(|_| eyre::eyre!("todo"))
-        };
+    fn bytes(self) -> ResponseExtFuture<Result<Bytes, RequestError>> {
+        let fut = async move { Ok(hyper::body::to_bytes(self.into_body()).await?) };
 
         Box::pin(fut)
     }
