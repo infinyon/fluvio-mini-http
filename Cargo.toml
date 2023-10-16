@@ -19,7 +19,7 @@ async-std = "1.12.0"
 fluvio-future = { version = "0.6.0", features = ["rust_tls"] }
 http = "0.2.9"
 hyper = { version = "0.14.27", default-features = false, features = ["client", "http1", "http2"] }
-rustls = "0.21.7"
+async-rustls = { version = "0.4.1" }
 rustls-webpki = "0.101.6"
 serde = { version = "1.0.189", optional = true }
 serde_json = { version = "1.0.107", optional = true }

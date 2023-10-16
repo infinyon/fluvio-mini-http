@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
+use async_rustls::rustls::{OwnedTrustAnchor, RootCertStore};
 use hyper::Uri;
-use rustls::{OwnedTrustAnchor, RootCertStore};
 
 use crate::{
     async_std_compat::{self, CompatConnector},
@@ -41,7 +41,7 @@ impl ClientBuilder {
             )
         }));
 
-        let tls = rustls::ClientConfig::builder()
+        let tls = async_rustls::rustls::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(cert)
             .with_no_client_auth();

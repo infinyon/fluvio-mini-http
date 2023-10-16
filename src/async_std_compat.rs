@@ -5,6 +5,7 @@ use std::{
     task::{Context, Poll},
 };
 
+use async_rustls::rustls::{client::InvalidDnsNameError, ClientConfig};
 use async_std::io::{Read, Write};
 use fluvio_future::{
     net::TcpStream,
@@ -16,7 +17,6 @@ use hyper::{
     service::Service,
     Uri,
 };
-use rustls::{client::InvalidDnsNameError, ClientConfig};
 
 use std::sync::Arc;
 

@@ -338,12 +338,12 @@ dependencies = [
 name = "fluvio-mini-http"
 version = "0.1.0"
 dependencies = [
+ "async-rustls",
  "async-std",
  "fluvio-future",
  "fluvio-mini-http",
  "http",
  "hyper",
- "rustls",
  "rustls-webpki",
  "serde",
  "serde_json",
