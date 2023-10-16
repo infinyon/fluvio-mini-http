@@ -44,15 +44,14 @@ impl RequestBuilder {
     }
 }
 
+// TODO: prefer static-dispatch once AFIT got stabilized in Rust v1.75
+type ResponseExtFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
+
 pub trait ResponseExt {
-    // TODO: fix this once `async fn in traits` is stable
-    // see: https://github.com/rust-lang/rust/pull/115822
-    fn bytes(self) -> Pin<Box<dyn Future<Output = Result<Bytes, eyre::Error>> + Send + 'static>>;
+    fn bytes(self) -> ResponseExtFuture<Result<Bytes, eyre::Error>>;
 
     #[cfg(feature = "json")]
-    fn json<T: serde::de::DeserializeOwned>(
-        self,
-    ) -> Pin<Box<dyn Future<Output = Result<T, eyre::Error>> + Send + 'static>>
+    fn json<T: serde::de::DeserializeOwned>(self) -> ResponseExtFuture<Result<T, eyre::Error>>
     where
         Self: Sized + Send + 'static,
     {
@@ -70,7 +69,7 @@ where
     T: hyper::body::HttpBody + Send + 'static,
     T::Data: Send,
 {
-    fn bytes(self) -> Pin<Box<dyn Future<Output = Result<Bytes, eyre::Error>> + Send + 'static>> {
+    fn bytes(self) -> ResponseExtFuture<Result<Bytes, eyre::Error>> {
         let fut = async move {
             hyper::body::to_bytes(self.into_body())
                 .await
