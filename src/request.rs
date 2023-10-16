@@ -30,11 +30,9 @@ impl RequestBuilder {
     }
 
     pub async fn send(self) -> Result<Response<Body>, eyre::Error> {
-        // TODO: impl IntoFuture for RequestBuilder
-        // Client::get().send().await vs Client::get().await
         let req = self
             .req_builder
-            .header("User-Agent", "fluvio-mini-http")
+            .header(http::header::USER_AGENT, "fluvio-mini-http/0.1")
             .body(hyper::Body::empty())
             .unwrap();
         Ok(self
@@ -50,6 +48,21 @@ pub trait ResponseExt {
     // TODO: fix this once `async fn in traits` is stable
     // see: https://github.com/rust-lang/rust/pull/115822
     fn bytes(self) -> Pin<Box<dyn Future<Output = Result<Bytes, eyre::Error>> + Send + 'static>>;
+
+    #[cfg(feature = "json")]
+    fn json<T: serde::de::DeserializeOwned>(
+        self,
+    ) -> Pin<Box<dyn Future<Output = Result<T, eyre::Error>> + Send + 'static>>
+    where
+        Self: Sized + Send + 'static,
+    {
+        let fut = async move {
+            let bytes = self.bytes().await?;
+            serde_json::from_slice(&bytes).map_err(|e| eyre::eyre!("serde erro: {e}"))
+        };
+
+        Box::pin(fut)
+    }
 }
 
 impl<T> ResponseExt for Response<T>

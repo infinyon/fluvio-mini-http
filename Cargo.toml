@@ -7,6 +7,12 @@ edition = "2021"
 async-std = { version = "1.12.0", features = ["attributes"] }
 tokio = { version = "1.33.0", features = ["macros", "rt-multi-thread"] }
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+hyper = { version = "0.14.27", features = ["server", "tcp"] }
+serde = { version = "1.0", features = ["derive"] }
+fluvio-mini-http = { path = ".", features = ["json"] }
+
+[features]
+json = ["dep:serde", "dep:serde_json"]
 
 [dependencies]
 async-std = "1.12.0"
@@ -16,5 +22,7 @@ http = "0.2.9"
 hyper = { version = "0.14.27", default-features = false, features = ["client", "http1", "http2"] }
 rustls = "0.21.7"
 rustls-webpki = "0.101.6"
+serde = { version = "1.0.189", optional = true }
+serde_json = { version = "1.0.107", optional = true }
 tokio = { version = "1.33.0", default-features = false }
 webpki-roots = "0.25.2"

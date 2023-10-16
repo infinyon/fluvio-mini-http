@@ -28,10 +28,10 @@ impl Client {
 
 #[derive(Default)]
 #[must_use]
-struct ClientBuilder;
+pub struct ClientBuilder;
 
 impl ClientBuilder {
-    fn build(&self) -> Client {
+    pub fn build(self) -> Client {
         let mut cert = RootCertStore::empty();
         cert.add_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.iter().map(|ta| {
             OwnedTrustAnchor::from_subject_spki_name_constraints(

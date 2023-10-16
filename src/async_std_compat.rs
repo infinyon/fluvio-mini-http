@@ -24,9 +24,7 @@ pub struct CompatConnector(Arc<TlsConnector>);
 
 impl CompatConnector {
     pub fn new(tls_config: ClientConfig) -> Self {
-        Self(Arc::new(TlsConnector::from(std::sync::Arc::new(
-            tls_config,
-        ))))
+        Self(Arc::new(TlsConnector::from(Arc::new(tls_config))))
     }
 }
 
@@ -44,7 +42,6 @@ impl Service<Uri> for CompatConnector {
     fn call(&mut self, uri: Uri) -> Self::Future {
         let connector = self.0.clone();
 
-        // TODO: move this to its own Future
         Box::pin(async move {
             let host = match uri.host() {
                 Some(h) => h,
@@ -52,7 +49,6 @@ impl Service<Uri> for CompatConnector {
             };
 
             match uri.scheme_str() {
-                Some("http") => Err(eyre::eyre!("http not supported")),
                 Some("https") => {
                     let socket_addr = {
                         let host = host.to_string();
@@ -75,6 +71,7 @@ impl Service<Uri> for CompatConnector {
                         })?;
                     Ok(TlsStream(stream))
                 }
+                Some("http") => Err(eyre::eyre!("http not supported")),
                 scheme => Err(eyre::eyre!("{:?}", scheme)),
             }
         })
@@ -129,6 +126,7 @@ impl tokio::io::AsyncWrite for TlsStream {
     }
 }
 
+#[derive(Clone)]
 pub struct CompatExecutor;
 
 impl<F> rt::Executor<F> for CompatExecutor
